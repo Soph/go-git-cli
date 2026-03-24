@@ -1,0 +1,1 @@
+can you add a basic readme describing this project as a drop in replacement for the git cli but only as a way to validate go-git implementation against the official git cli
