@@ -1,0 +1,34 @@
+I'd like to also add that we can easily build it against the real repo (go-git/go-git) but also forks like (Soph/go-git) so people can validate changes against the test suite, how can we achieve that?
+
+---
+
+❯ make test-cli GOGIT=github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli
+go mod edit -replace github.com/go-git/go-git/v6=github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli
+go: errors parsing go.mod:
+/Users/soph/Work/entire/git-cli/go.mod:28: replace github.com/Soph/go-git/v6: version "handle-config-values-more-inline-with-git-cli" invalid: must be of the form v1.2.3
+make: *** [set-gogit] Error 1
+
+---
+
+❯ make test-cli GOGIT=github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli
+resolving github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli ...
+go: errors parsing go.mod:
+go.mod:28: replace github.com/Soph/go-git/v6: version "handle-config-values-more-inline-with-git-cli" invalid: unknown revision handle-config-values-more-inline-with-git-cli
+make: *** [set-gogit] Error 1
+
+---
+
+❯ make test-cli GOGIT=github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli
+resolving github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli ...
+go: github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli: invalid version: unknown revision handle-config-values-more-inline-with-git-cli
+
+---
+
+❯ make test-cli GOGIT=github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli
+resolving github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli ...
+go: github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli: invalid version: unknown revision handle-config-values-more-inline-with-git-cli
+make: *** [set-gogit] Error 1
+
+---
+
+let's add .gogit-src to gitignore
