@@ -16,11 +16,28 @@ diff, diff-files, diff-index, merge, pull, rm
 
 ## Building
 
+By default, the build uses a local clone of go-git at `../go-git`:
+
 ```
 make build
 ```
 
-This compiles the binary to `build/bin/git` and runs `git install` to create the symlinks.
+### Building against a fork or branch
+
+Use the `GOGIT` variable to build against any go-git fork or branch. This makes it easy to validate changes on a fork before they land upstream.
+
+```
+# Local path (default)
+make build GOGIT=../go-git
+
+# Your fork at a branch
+make build GOGIT=github.com/Soph/go-git@my-feature-branch
+
+# Build + run the test suite against your fork
+make test-cli GOGIT=github.com/Soph/go-git@my-feature-branch
+```
+
+Remote forks are cloned into `.gogit-src/` and cached between runs. The `replace` directive in `go.mod` is updated to point at the local clone.
 
 ## Testing against upstream Git
 
@@ -42,4 +59,4 @@ Requires an internet connection on first run to clone the upstream Git source (c
 ## Requirements
 
 - Go 1.24+
-- A local clone of [go-git](https://github.com/go-git/go-git) at `../go-git` (see `replace` directive in `go.mod`)
+- A local clone of go-git at `../go-git`, **or** use `GOGIT=` to point at a remote fork/branch
