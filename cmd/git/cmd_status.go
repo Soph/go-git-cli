@@ -17,6 +17,7 @@ func cmdStatus(args []string) int {
 		porcelain     bool
 		short         bool
 		branch        bool
+		nulTerminate  bool
 		showUntracked = "normal" // "all", "normal", "no"
 	)
 
@@ -33,7 +34,7 @@ func cmdStatus(args []string) int {
 		case "--no-branch":
 			branch = false
 		case "-z":
-			// NUL-terminated, ignored for now
+			nulTerminate = true
 		case "-u", "--untracked-files", "--untracked-files=all", "-uall":
 			showUntracked = "all"
 		case "-uno", "-ufalse", "-uoff", "--untracked-files=no", "--untracked-files=false":
@@ -118,16 +119,37 @@ func cmdStatus(args []string) int {
 		return 128
 	}
 
+	// Check status.displayCommentPrefix config.
+	commentPrefix := ""
+	if rcfg2, err := readRawConfig(); err == nil {
+		for _, s := range rcfg2.Sections {
+			if s.IsName("status") && s.HasOption("displayCommentPrefix") {
+				if cfgBool(s.Option("displayCommentPrefix")) {
+					commentPrefix = "# "
+				}
+			}
+		}
+	}
+	if globalConfigOverrides != nil {
+		if v, ok := globalConfigOverrides["status.displaycommentprefix"]; ok {
+			if cfgBool(v) {
+				commentPrefix = "# "
+			} else {
+				commentPrefix = ""
+			}
+		}
+	}
+
 	if porcelain || short {
 		if branch {
-			printShortBranch(repo)
+			printShortBranch(repo, nulTerminate)
 		}
-		printShortStatus(status, showUntracked)
+		printShortStatus(status, showUntracked, nulTerminate)
 		return 0
 	}
 
 	// Long format.
-	return printLongStatus(repo, status, showUntracked)
+	return printLongStatus(repo, status, showUntracked, commentPrefix)
 }
 
 // cfgBool returns true if val is a git boolean "true" value.
@@ -237,17 +259,21 @@ func countAheadBehind(repo *goGit.Repository, headHash plumbing.Hash, trackingRe
 }
 
 // printShortBranch prints the "## branch...upstream" header for -s -b.
-func printShortBranch(repo *goGit.Repository) {
+func printShortBranch(repo *goGit.Repository, nulTerminate bool) {
+	eol := "\n"
+	if nulTerminate {
+		eol = "\x00"
+	}
 	head, err := repo.Head()
 	if err != nil || !head.Name().IsBranch() {
-		fmt.Println("## HEAD (no branch)")
+		fmt.Printf("## HEAD (no branch)%s", eol)
 		return
 	}
 	branchName := head.Name().Short()
 
 	trackingRef, display := branchTrackingInfo(branchName)
 	if trackingRef == "" {
-		fmt.Printf("## %s\n", branchName)
+		fmt.Printf("## %s%s", branchName, eol)
 		return
 	}
 
@@ -255,19 +281,23 @@ func printShortBranch(repo *goGit.Repository) {
 
 	switch {
 	case ahead > 0 && behind > 0:
-		fmt.Printf("## %s...%s [ahead %d, behind %d]\n", branchName, display, ahead, behind)
+		fmt.Printf("## %s...%s [ahead %d, behind %d]%s", branchName, display, ahead, behind, eol)
 	case ahead > 0:
-		fmt.Printf("## %s...%s [ahead %d]\n", branchName, display, ahead)
+		fmt.Printf("## %s...%s [ahead %d]%s", branchName, display, ahead, eol)
 	case behind > 0:
-		fmt.Printf("## %s...%s [behind %d]\n", branchName, display, behind)
+		fmt.Printf("## %s...%s [behind %d]%s", branchName, display, behind, eol)
 	default:
-		fmt.Printf("## %s...%s\n", branchName, display)
+		fmt.Printf("## %s...%s%s", branchName, display, eol)
 	}
 }
 
 // printShortStatus prints porcelain/short format, with tracked changes sorted
 // before untracked entries (matching git's output order).
-func printShortStatus(status goGit.Status, showUntracked string) {
+func printShortStatus(status goGit.Status, showUntracked string, nulTerminate bool) {
+	eol := "\n"
+	if nulTerminate {
+		eol = "\x00"
+	}
 	var tracked []string
 	untrackedSet := make(map[string]bool)
 	for p, s := range status {
@@ -281,12 +311,12 @@ func printShortStatus(status goGit.Status, showUntracked string) {
 
 	for _, p := range tracked {
 		s := status[p]
-		fmt.Printf("%c%c %s\n", byte(s.Staging), byte(s.Worktree), quotePath(p))
+		fmt.Printf("%c%c %s%s", byte(s.Staging), byte(s.Worktree), quotePath(p), eol)
 	}
 	if showUntracked != "no" {
 		entries := collapseUntracked(untrackedSet, status, showUntracked)
 		for _, p := range entries {
-			fmt.Printf("?? %s\n", quotePath(p))
+			fmt.Printf("?? %s%s", quotePath(p), eol)
 		}
 	}
 }
@@ -301,19 +331,19 @@ func quotePath(p string) string {
 }
 
 // printLongStatus prints git's default long status format with sections.
-func printLongStatus(repo *goGit.Repository, status goGit.Status, showUntracked string) int {
+func printLongStatus(repo *goGit.Repository, status goGit.Status, showUntracked string, cp string) int {
 	head, headErr := repo.Head()
 	initialCommit := headErr != nil // HEAD doesn't resolve → no commits yet
 
 	if !initialCommit && head.Name().IsBranch() {
-		fmt.Printf("On branch %s\n", head.Name().Short())
+		fmt.Printf("%sOn branch %s\n", cp, head.Name().Short())
 	} else if !initialCommit {
-		fmt.Printf("HEAD detached at %s\n", head.Hash().String()[:7])
+		fmt.Printf("%sHEAD detached at %s\n", cp, head.Hash().String()[:7])
 	} else {
 		// Try to get branch name from symbolic HEAD on unborn branch.
 		symRef, err := repo.Storer.Reference(plumbing.HEAD)
 		if err == nil && symRef.Type() == plumbing.SymbolicReference {
-			fmt.Printf("On branch %s\n", symRef.Target().Short())
+			fmt.Printf("%sOn branch %s\n", cp, symRef.Target().Short())
 		}
 	}
 
@@ -346,40 +376,40 @@ func printLongStatus(repo *goGit.Repository, status goGit.Status, showUntracked 
 			ahead, behind := countAheadBehind(repo, head.Hash(), trackingRef)
 			switch {
 			case ahead > 0 && behind > 0:
-				fmt.Printf("Your branch and '%s' have diverged,\n", display)
-				fmt.Printf("and have %d and %d different commits each, respectively.\n", ahead, behind)
+				fmt.Printf("%sYour branch and '%s' have diverged,\n", cp, display)
+				fmt.Printf("%sand have %d and %d different commits each, respectively.\n", cp, ahead, behind)
 				if showHints {
-					fmt.Println("  (use \"git pull\" if you want to integrate the remote branch with yours)")
+					fmt.Printf("%s  (use \"git pull\" if you want to integrate the remote branch with yours)\n", cp)
 				}
-				fmt.Println()
+				fmt.Printf("%s\n", cp)
 			case ahead > 0:
-				fmt.Printf("Your branch is ahead of '%s' by %d commit", display, ahead)
+				fmt.Printf("%sYour branch is ahead of '%s' by %d commit", cp, display, ahead)
 				if ahead > 1 {
 					fmt.Print("s")
 				}
 				fmt.Println(".")
 				if showHints {
-					fmt.Println("  (use \"git push\" to publish your local commits)")
+					fmt.Printf("%s  (use \"git push\" to publish your local commits)\n", cp)
 				}
-				fmt.Println()
+				fmt.Printf("%s\n", cp)
 			case behind > 0:
-				fmt.Printf("Your branch is behind '%s' by %d commit", display, behind)
+				fmt.Printf("%sYour branch is behind '%s' by %d commit", cp, display, behind)
 				if behind > 1 {
 					fmt.Print("s")
 				}
 				fmt.Println(", and can be fast-forwarded.")
 				if showHints {
-					fmt.Println("  (use \"git pull\" to update your local branch)")
+					fmt.Printf("%s  (use \"git pull\" to update your local branch)\n", cp)
 				}
-				fmt.Println()
+				fmt.Printf("%s\n", cp)
 			}
 		}
 	}
 
 	if initialCommit {
-		fmt.Println()
-		fmt.Println("No commits yet")
-		fmt.Println()
+		fmt.Printf("%s\n", cp)
+		fmt.Printf("%sNo commits yet\n", cp)
+		fmt.Printf("%s\n", cp)
 	}
 
 	// Categorize files.
@@ -406,51 +436,51 @@ func printLongStatus(repo *goGit.Repository, status goGit.Status, showUntracked 
 	hasUntrackedSection := showUntracked != "no" && len(untracked) > 0
 
 	if hasStagedSection {
-		fmt.Println("Changes to be committed:")
+		fmt.Printf("%sChanges to be committed:\n", cp)
 		if showHints {
 			if initialCommit {
-				fmt.Println("  (use \"git rm --cached <file>...\" to unstage)")
+				fmt.Printf("%s  (use \"git rm --cached <file>...\" to unstage)\n", cp)
 			} else {
-				fmt.Println("  (use \"git restore --staged <file>...\" to unstage)")
+				fmt.Printf("%s  (use \"git restore --staged <file>...\" to unstage)\n", cp)
 			}
 		}
 		for _, p := range staged {
 			s := status[p]
-			fmt.Printf("\t%s%s\n", longStagingPrefix(s.Staging), p)
+			fmt.Printf("%s\t%s%s\n", cp, longStagingPrefix(s.Staging), p)
 		}
-		fmt.Println()
+		fmt.Printf("%s\n", cp)
 	}
 
 	if hasUnstagedSection {
-		fmt.Println("Changes not staged for commit:")
+		fmt.Printf("%sChanges not staged for commit:\n", cp)
 		if showHints {
-			fmt.Println("  (use \"git add <file>...\" to update what will be committed)")
-			fmt.Println("  (use \"git restore <file>...\" to discard changes in working directory)")
+			fmt.Printf("%s  (use \"git add <file>...\" to update what will be committed)\n", cp)
+			fmt.Printf("%s  (use \"git restore <file>...\" to discard changes in working directory)\n", cp)
 		}
 		for _, p := range unstaged {
 			s := status[p]
-			fmt.Printf("\t%s%s\n", longWorktreePrefix(s.Worktree), p)
+			fmt.Printf("%s\t%s%s\n", cp, longWorktreePrefix(s.Worktree), p)
 		}
-		fmt.Println()
+		fmt.Printf("%s\n", cp)
 	}
 
 	if hasUntrackedSection {
-		fmt.Println("Untracked files:")
+		fmt.Printf("%sUntracked files:\n", cp)
 		if showHints {
-			fmt.Println("  (use \"git add <file>...\" to include in what will be committed)")
+			fmt.Printf("%s  (use \"git add <file>...\" to include in what will be committed)\n", cp)
 		}
 		for _, p := range untracked {
-			fmt.Printf("\t%s\n", p)
+			fmt.Printf("%s\t%s\n", cp, p)
 		}
-		fmt.Println()
+		fmt.Printf("%s\n", cp)
 	}
 
 	// "Untracked files not listed" message when -uno hides them.
 	if showUntracked == "no" && len(untrackedSet) > 0 {
 		if showHints {
-			fmt.Println("Untracked files not listed (use -u option to show untracked files)")
+			fmt.Printf("%sUntracked files not listed (use -u option to show untracked files)\n", cp)
 		} else {
-			fmt.Println("Untracked files not listed")
+			fmt.Printf("%sUntracked files not listed\n", cp)
 		}
 	}
 
