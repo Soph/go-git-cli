@@ -53,7 +53,7 @@ func init() {
 		"diff-index":    cmdUnimplemented,
 		"merge":         cmdUnimplemented,
 		"reset":         cmdReset,
-		"rm":            cmdUnimplemented,
+		"rm":            cmdRm,
 		"clone":         cmdClone,
 		"update-index":  cmdUpdateIndex,
 		"reflog":        cmdReflog,
