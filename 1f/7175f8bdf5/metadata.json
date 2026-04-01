@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.2",
+  "checkpoint_id": "1f7175f8bdf5",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "cmd/git/main.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1f/7175f8bdf5/0/metadata.json",
+      "transcript": "/1f/7175f8bdf5/0/full.jsonl",
+      "content_hash": "/1f/7175f8bdf5/0/content_hash.txt",
+      "prompt": "/1f/7175f8bdf5/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 10950,
+    "cache_creation_tokens": 934456,
+    "cache_read_tokens": 17784299,
+    "output_tokens": 93803,
+    "api_call_count": 208
+  }
+}
