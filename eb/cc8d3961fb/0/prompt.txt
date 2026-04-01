@@ -1,0 +1,102 @@
+I'd like to also add that we can easily build it against the real repo (go-git/go-git) but also forks like (Soph/go-git) so people can validate changes against the test suite, how can we achieve that?
+
+---
+
+❯ make test-cli GOGIT=github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli
+go mod edit -replace github.com/go-git/go-git/v6=github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli
+go: errors parsing go.mod:
+/Users/soph/Work/entire/git-cli/go.mod:28: replace github.com/Soph/go-git/v6: version "handle-config-values-more-inline-with-git-cli" invalid: must be of the form v1.2.3
+make: *** [set-gogit] Error 1
+
+---
+
+❯ make test-cli GOGIT=github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli
+resolving github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli ...
+go: errors parsing go.mod:
+go.mod:28: replace github.com/Soph/go-git/v6: version "handle-config-values-more-inline-with-git-cli" invalid: unknown revision handle-config-values-more-inline-with-git-cli
+make: *** [set-gogit] Error 1
+
+---
+
+❯ make test-cli GOGIT=github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli
+resolving github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli ...
+go: github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli: invalid version: unknown revision handle-config-values-more-inline-with-git-cli
+
+---
+
+❯ make test-cli GOGIT=github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli
+resolving github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli ...
+go: github.com/Soph/go-git/v6@handle-config-values-more-inline-with-git-cli: invalid version: unknown revision handle-config-values-more-inline-with-git-cli
+make: *** [set-gogit] Error 1
+
+---
+
+let's add .gogit-src to gitignore
+
+---
+
+The honest answer is: our fix is correct but it's unlikely to show up in the git test suite
+  numbers. The t3200-branch.sh tests don't specifically test reading configs with non-refs/ merge
+  values — that's a scenario triggered by real-world git configs (e.g., manually edited or from older
+   git versions). The 138 failures are from unimplemented CLI features like --track,
+  --set-upstream-to, branch rename config propagation, etc.
+
+---
+
+can you implement this in the cli: 
+
+  Root cause: git config -f <file> and git config --remove-section are not implemented in the CLI.
+  The -f flag is silently ignored, causing:
+
+  1. git config --add -f .gitmodules submodule.subname.ignore none → parsed as git config --add
+  .gitmodules submodule.subname.ignore (the -f is swallowed, .gitmodules becomes the key,
+  submodule.subname.ignore becomes the value)
+  2. parseConfigKey(".gitmodules") → section "", name "gitmodules"
+  3. This writes [] \n gitmodules = submodule.subname.ignore into .git/config
+  4. go-git's config parser then chokes on [] (empty section name) in all subsequent operations
+
+  The fix is not in the config parser — it's that the CLI needs to implement -f/--file (and ideally
+  --remove-section). The parser is correctly rejecting malformed config. The 28 cascading failures
+  all stem from that one corrupted config entry.
+
+  Implementing -f/--file is the higher-leverage fix — it would prevent the corruption and likely fix
+  all 28 failures. --remove-section would fix additional cleanup issues. Want me to implement those?
+
+---
+
+So parseConfigKey(".gitmodules") returns section="", subsection="", name="gitmodules". Then
+  cfg.SetOption("", "", "gitmodules", "submodule.subname.ignore") creates an empty section [] in the
+  config file. That's what produces line 19: [].
+
+  Here's the full picture:
+
+  Root cause: git config -f <file> and git config --remove-section are not implemented in the CLI.
+  The -f flag is silently ignored, causing:
+
+  1. git config --add -f .gitmodules submodule.subname.ignore none → parsed as git config --add
+  .gitmodules submodule.subname.ignore (the -f is swallowed, .gitmodules becomes the key,
+  submodule.subname.ignore becomes the value)
+  2. parseConfigKey(".gitmodules") → section "", name "gitmodules"
+  3. This writes [] \n gitmodules = submodule.subname.ignore into .git/config
+  4. go-git's config parser then chokes on [] (empty section name) in all subsequent operations
+
+  The fix is not in the config parser — it's that the CLI needs to implement -f/--file (and ideally
+  --remove-section). The parser is correctly rejecting malformed config. The 28 cascading failures
+  all stem from that one corrupted config entry.
+
+  Implementing -f/--file is the higher-leverage fix — it would prevent the corruption and likely fix
+  all 28 failures. --remove-section would fix additional cleanup issues.
+
+so did that turned out to be true, did it fix 28 tests?
+
+---
+
+Can we implement those flags next?
+
+---
+
+can you commit it and make a meaningful commit message
+
+---
+
+keep going through the list until done, commit each successful todo as a commit
