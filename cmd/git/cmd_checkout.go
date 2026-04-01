@@ -83,6 +83,17 @@ func cmdCheckout(args []string) int {
 	}
 
 	if create && branch != "" {
+		// Handle unborn HEAD (no commits yet): just update the symbolic ref.
+		_, headErr := repo.Head()
+		if headErr != nil && len(positional) == 0 {
+			ref := plumbing.NewSymbolicReference(plumbing.HEAD, plumbing.NewBranchReferenceName(branch))
+			if err := repo.Storer.SetReference(ref); err != nil {
+				fmt.Fprintf(os.Stderr, "fatal: %s\n", err)
+				return 128
+			}
+			return 0
+		}
+
 		opts := &git.CheckoutOptions{
 			Branch: plumbing.NewBranchReferenceName(branch),
 			Create: true,

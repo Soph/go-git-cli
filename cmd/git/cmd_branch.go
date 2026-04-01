@@ -11,15 +11,19 @@ import (
 
 func cmdBranch(args []string) int {
 	var (
-		doDelete     bool
-		doMove       bool
-		force        bool
-		showCurrent  bool
-		createReflog bool
-		positional   []string
+		doDelete       bool
+		doMove         bool
+		force          bool
+		showCurrent    bool
+		createReflog   bool
+		setUpstreamTo  string
+		unsetUpstream  bool
+		positional     []string
 	)
 
-	for _, a := range args {
+	i := 0
+	for i < len(args) {
+		a := args[i]
 		switch a {
 		case "-d", "--delete":
 			doDelete = true
@@ -45,11 +49,21 @@ func cmdBranch(args []string) int {
 			// accepted, ignored
 		case "--create-reflog":
 			createReflog = true
+		case "--set-upstream-to", "-u":
+			i++
+			if i < len(args) {
+				setUpstreamTo = args[i]
+			}
+		case "--unset-upstream":
+			unsetUpstream = true
 		default:
-			if !strings.HasPrefix(a, "-") {
+			if strings.HasPrefix(a, "--set-upstream-to=") {
+				setUpstreamTo = strings.TrimPrefix(a, "--set-upstream-to=")
+			} else if !strings.HasPrefix(a, "-") {
 				positional = append(positional, a)
 			}
 		}
+		i++
 	}
 
 	repo := openRepoOrDie()
@@ -60,6 +74,13 @@ func cmdBranch(args []string) int {
 			fmt.Println(head.Name().Short())
 		}
 		return 0
+	}
+
+	if setUpstreamTo != "" {
+		return branchSetUpstream(repo, setUpstreamTo, positional)
+	}
+	if unsetUpstream {
+		return branchUnsetUpstream(repo, positional)
 	}
 
 	if doDelete {
@@ -232,6 +253,88 @@ func cmdBranch(args []string) int {
 			fmt.Printf("  %s\n", b)
 		}
 	}
+
+	return 0
+}
+
+// branchSetUpstream sets the upstream tracking branch for the current branch
+// (or the branch named in positional[0]).
+// upstream can be: "origin/main", "upstream", "origin/feature", etc.
+func branchSetUpstream(repo interface{}, upstream string, positional []string) int {
+	// Determine which branch to configure.
+	branchName := ""
+	if len(positional) > 0 {
+		branchName = positional[0]
+	} else {
+		r := openRepoOrDie()
+		head, err := r.Head()
+		if err != nil || !head.Name().IsBranch() {
+			fmt.Fprintln(os.Stderr, "fatal: could not set upstream of HEAD when it does not point to any branch.")
+			return 128
+		}
+		branchName = head.Name().Short()
+	}
+
+	// Parse the upstream spec. It can be:
+	//   "origin/main"  → remote=origin, merge=refs/heads/main
+	//   "upstream"     → a local branch, remote=., merge=refs/heads/upstream
+	remoteName := "."
+	mergeBranch := upstream
+
+	// Check if upstream is a remote tracking ref (remote/branch).
+	if idx := strings.IndexByte(upstream, '/'); idx > 0 {
+		candidateRemote := upstream[:idx]
+		candidateBranch := upstream[idx+1:]
+		// Check if this remote exists.
+		cfg, err := readRawConfig()
+		if err == nil {
+			for _, s := range cfg.Sections {
+				if s.IsName("remote") {
+					for _, ss := range s.Subsections {
+						if ss.IsName(candidateRemote) {
+							remoteName = candidateRemote
+							mergeBranch = candidateBranch
+						}
+					}
+				}
+			}
+		}
+	}
+
+	mergeRef := "refs/heads/" + mergeBranch
+
+	// Write branch.<name>.remote and branch.<name>.merge to config.
+	key1 := fmt.Sprintf("branch.%s.remote", branchName)
+	key2 := fmt.Sprintf("branch.%s.merge", branchName)
+	if rc := configSet(key1, remoteName); rc != 0 {
+		return rc
+	}
+	if rc := configSet(key2, mergeRef); rc != 0 {
+		return rc
+	}
+
+	return 0
+}
+
+// branchUnsetUpstream removes the upstream tracking config for a branch.
+func branchUnsetUpstream(repo interface{}, positional []string) int {
+	branchName := ""
+	if len(positional) > 0 {
+		branchName = positional[0]
+	} else {
+		r := openRepoOrDie()
+		head, err := r.Head()
+		if err != nil || !head.Name().IsBranch() {
+			fmt.Fprintln(os.Stderr, "fatal: could not unset upstream of HEAD when it does not point to any branch.")
+			return 128
+		}
+		branchName = head.Name().Short()
+	}
+
+	key1 := fmt.Sprintf("branch.%s.remote", branchName)
+	key2 := fmt.Sprintf("branch.%s.merge", branchName)
+	configUnset(key1)
+	configUnset(key2)
 
 	return 0
 }

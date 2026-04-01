@@ -10,18 +10,26 @@ import (
 	format "github.com/go-git/go-git/v6/plumbing/format/config"
 )
 
+// configFileOverride is set by -f/--file to operate on an arbitrary config file
+// instead of .git/config.
+var configFileOverride string
+
 func cmdConfig(args []string) int {
+	// Reset per-invocation state.
+	configFileOverride = ""
+
 	var (
-		scope     string // "local", "global", "system"
-		getBool   bool
-		getInt    bool
-		doGet     bool
-		doUnset   bool
-		doList    bool
-		doAdd     bool
-		key       string
-		value     string
-		hasValue  bool
+		scope         string // "local", "global", "system"
+		getBool       bool
+		getInt        bool
+		doGet         bool
+		doUnset       bool
+		doList        bool
+		doAdd         bool
+		removeSection string
+		key           string
+		value         string
+		hasValue      bool
 	)
 
 	positional := []string{}
@@ -41,12 +49,22 @@ func cmdConfig(args []string) int {
 			getInt = true
 		case "--get":
 			doGet = true
-		case "--unset":
+		case "--unset", "--unset-all":
 			doUnset = true
 		case "--list", "-l":
 			doList = true
 		case "--add":
 			doAdd = true
+		case "-f", "--file":
+			i++
+			if i < len(args) {
+				configFileOverride = args[i]
+			}
+		case "--remove-section":
+			i++
+			if i < len(args) {
+				removeSection = args[i]
+			}
 		case "--default":
 			// skip value
 			i++
@@ -56,7 +74,9 @@ func cmdConfig(args []string) int {
 		case "--null", "-z":
 			// accepted, ignored for now
 		default:
-			if strings.HasPrefix(a, "--type=") {
+			if strings.HasPrefix(a, "--file=") {
+				configFileOverride = strings.TrimPrefix(a, "--file=")
+			} else if strings.HasPrefix(a, "--type=") {
 				tp := strings.TrimPrefix(a, "--type=")
 				switch tp {
 				case "bool":
@@ -82,6 +102,10 @@ func cmdConfig(args []string) int {
 
 	if doList {
 		return configList()
+	}
+
+	if removeSection != "" {
+		return configRemoveSection(removeSection)
 	}
 
 	// Parse positional args: git config [--flags] <key> [<value>]
@@ -131,6 +155,9 @@ func parseConfigKey(key string) (section, subsection, name string) {
 }
 
 func configPath() string {
+	if configFileOverride != "" {
+		return configFileOverride
+	}
 	return filepath.Join(gitDir(), "config")
 }
 
@@ -274,6 +301,59 @@ func configUnset(key string) int {
 				}
 			}
 		}
+	}
+
+	if err := writeRawConfig(cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "fatal: unable to write config: %s\n", err)
+		return 128
+	}
+	return 0
+}
+
+func configRemoveSection(name string) int {
+	cfg, err := readRawConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "fatal: unable to read config: %s\n", err)
+		return 128
+	}
+
+	// "section.subsection" → remove [section "subsection"]
+	// "section"            → remove [section]
+	section, subsection, _ := parseConfigKey(name + ".dummy")
+
+	found := false
+	if subsection == "" {
+		// Remove entire top-level section.
+		newSections := make(format.Sections, 0, len(cfg.Sections))
+		for _, s := range cfg.Sections {
+			if s.IsName(section) {
+				found = true
+				continue
+			}
+			newSections = append(newSections, s)
+		}
+		cfg.Sections = newSections
+	} else {
+		// Remove a subsection from its parent section.
+		for _, s := range cfg.Sections {
+			if !s.IsName(section) {
+				continue
+			}
+			newSubs := make(format.Subsections, 0, len(s.Subsections))
+			for _, ss := range s.Subsections {
+				if ss.IsName(subsection) {
+					found = true
+					continue
+				}
+				newSubs = append(newSubs, ss)
+			}
+			s.Subsections = newSubs
+		}
+	}
+
+	if !found {
+		fmt.Fprintf(os.Stderr, "fatal: no such section: %s\n", name)
+		return 128
 	}
 
 	if err := writeRawConfig(cfg); err != nil {
