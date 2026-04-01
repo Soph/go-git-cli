@@ -54,6 +54,7 @@ func init() {
 		"merge":         cmdUnimplemented,
 		"reset":         cmdReset,
 		"rm":            cmdRm,
+		"mv":            cmdMv,
 		"clone":         cmdClone,
 		"update-index":  cmdUpdateIndex,
 		"reflog":        cmdReflog,
