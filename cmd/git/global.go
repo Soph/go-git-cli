@@ -51,6 +51,18 @@ func parseGlobalFlags(args []string) (globalFlags, string, []string) {
 			return g, "", nil
 		case strings.HasPrefix(a, "--exec-path="):
 			// Set exec path (rarely used, ignore value for now).
+		case a == "--git-dir" && i+1 < len(args):
+			i++
+			os.Setenv("GIT_DIR", args[i])
+		case strings.HasPrefix(a, "--git-dir="):
+			os.Setenv("GIT_DIR", strings.TrimPrefix(a, "--git-dir="))
+
+		case a == "--work-tree" && i+1 < len(args):
+			i++
+			os.Setenv("GIT_WORK_TREE", args[i])
+		case strings.HasPrefix(a, "--work-tree="):
+			os.Setenv("GIT_WORK_TREE", strings.TrimPrefix(a, "--work-tree="))
+
 		case a == "--bare":
 			// --bare is a global flag that gets forwarded to the subcommand.
 			// e.g., "git --bare init" → "init --bare"
