@@ -67,6 +67,7 @@ func init() {
 		"pull":          cmdPull,
 		"fsck":          cmdFsck,
 		"repack":        cmdRepack,
+		"submodule":     cmdSubmodule,
 	}
 }
 
