@@ -140,3 +140,7 @@ on:
 Rejects valid `branch.*.merge` values not starting with `refs/` (~55 test failures)
 
 I did a PR on go-git here, which is merged: https://github.com/go-git/go-git/pull/1923 that should address this? Or is there something missing?
+
+---
+
+can you commit the changes for git merge
