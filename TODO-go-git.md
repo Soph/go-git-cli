@@ -31,6 +31,10 @@ Issues and missing features in go-git that limit the CLI.
 
 - [ ] `Worktree.Add()` has no force option
 
+## Bundle
+
+- [ ] No bundle support (`git bundle create` / `git bundle unbundle`) — needs packfile generation with prerequisite header
+
 ## Fsck / object integrity
 
 - [ ] No API to get raw object bytes for re-hashing (needed to verify SHA matches content)
