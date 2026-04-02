@@ -51,7 +51,7 @@ func init() {
 		"diff":          cmdDiff,
 		"diff-files":    cmdDiffFiles,
 		"diff-index":    cmdDiffIndex,
-		"merge":         cmdUnimplemented,
+		"merge":         cmdMerge,
 		"reset":         cmdReset,
 		"rm":            cmdRm,
 		"mv":            cmdMv,
