@@ -1,135 +1,110 @@
-# CLI Test Suite — Remaining Fatal Errors
+# CLI Test Suite — Failure Analysis
 
-Analysis of the 226 `fatal-error` failures across all 9 test suites.
-These are cases where go-git returns an unexpected error or the CLI crashes.
-Grouped by root cause, with estimated difficulty and impact.
+Current results: **391 pass / 67 skip / 975 fail** across 9 test suites (1433 total).
 
-Run `make classify-failures` to regenerate the breakdown.
+Run `mise run test-cli` to re-run. Run `make classify-failures` to re-classify.
+
+## Failure breakdown
+
+| Category | Count | Description |
+|---|---|---|
+| output-mismatch | 502 | CLI output format differs from real git |
+| fatal-error | 217 | go-git library error or CLI crash |
+| exit-code | 103 | Command ran but returned wrong exit code |
+| other | 95 | Uncategorized |
+| test-framework | 41 | git's test harness subtests (t0000) |
+| unimplemented | 17 | Missing command (skip-list candidate) |
 
 ## go-git library bugs
 
 These require changes to the go-git library, not the CLI shim.
+See `TODO-go-git.md` for the full upstream wishlist.
 
 ### Config parser rejects valid git config syntax
 
-**Impact: ~195 failures across 4 suites (largest single root cause)**
+**Impact: largest single root cause across multiple suites**
 
-go-git's config parser is stricter than real git. Three distinct issues:
+go-git's config parser is stricter than real git:
 
-1. **`branch config: invalid merge` (55 hits, t3200-branch)**
-   `config/branch.go:47` — `Branch.Validate()` rejects merge values that don't
-   start with `refs/`. Real git allows any value during config read; it only
-   validates when the value is actually used. Tests write `branch.main.merge = foo`
-   and then every subsequent go-git operation fails to open the repo.
-   **Fix: ~3 lines** — remove or relax the merge prefix check in `Validate()`.
+1. **`illegal character U+002F '/'`** (~119 hits, t5516-fetch-push, t0001-init)
+   Rejects `/` in config values like URLs.
 
-2. **`illegal character U+002F '/'` (89+24+6 hits, t5516-fetch-push, t0001-init)**
-   The config parser rejects lines containing `/` in unexpected positions.
-   Likely triggered by URL values or path-like config entries that real git handles.
-   **Fix: needs investigation** — trace the exact config line that triggers this.
+2. **`expected section name`** (~28 hits, t7508-status)
+   Rejects config files with multiline values or unusual section syntax.
 
-3. **`expected section name` (28 hits, t7508-status)**
-   Config parser fails on config files that contain lines real git wrote and can
-   parse. Likely an issue with multiline values or unusual section syntax.
-   **Fix: needs investigation** — trace the exact config content.
+3. **`expected EOL, EOF, or comment`** (~19 hits, t3200-branch)
+   Similar strictness on config written by real git.
 
-4. **`expected EOL, EOF, or comment` (14+5 hits, t3200-branch)**
-   Similar config parser strictness. The config file was written by real git
-   commands in the test but go-git can't re-read it.
-   **Fix: needs investigation** — same class of issue as above.
+Note: `branch config: invalid merge` (~55 hits) was fixed upstream in
+go-git/go-git#1923, awaiting next v6 release.
 
-### unknown extension: compatobjectformat (89 hits, t1006-cat-file)
+### unknown extension: compatobjectformat (~89 hits, t1006-cat-file)
 
-go-git errors when opening a repo whose config has `extensions.compatobjectformat`.
-This is a git extension for SHA-256 compat mode. go-git should either support it
-or ignore unknown extensions gracefully.
-**Fix: ~5 lines** — skip unknown extensions instead of erroring.
+go-git errors on repos with `extensions.compatobjectformat` (SHA-256 compat).
+Should ignore unknown extensions gracefully.
 
-### tag already exists during fetch (9 hits, t7004-tag)
+### Other go-git issues
 
-go-git's fetch returns `ErrTagExists` when fetching tags that already exist in
-the destination. Real git silently skips them. The CLI works around this with a
-string match, but the library should handle it natively.
-**Fix: in `remote.go`** — skip existing tags during ref update instead of erroring.
-
-### advertising references: max. recursion level (7 hits, t3200-branch)
-
-go-git hits infinite recursion when advertising refs during fetch. Likely a
-symbolic ref loop or similar edge case in the test repo.
-**Fix: needs investigation** — reproduce and trace the recursion.
-
-### chroot boundary crossed (2+2 hits, t5510-fetch, t5516-fetch-push)
-
-go-git's billy filesystem errors when a path resolves outside the chroot.
-This happens during fetch/clone with certain path configurations.
-**Fix: needs investigation** — may be a billy bug or a path resolution issue.
-
-### malformed refspec (3 hits, t5510-fetch)
-
-go-git rejects refspecs that real git accepts. Likely edge cases in refspec
-syntax (negation, globbing patterns).
-**Fix: needs investigation** — check which refspec format is rejected.
-
-### invalid reference name (5 hits, t7004-tag, t0001-init)
-
-go-git rejects ref names that real git allows, such as `refs/tags/v*` or
-`refs/heads/with space`. go-git's ref name validation is stricter.
-**Fix: ~10 lines** — relax ref name validation rules.
+- Tag already exists during fetch (~9 hits) — should silently skip
+- Infinite recursion advertising refs (~7 hits) — symbolic ref loops
+- Invalid reference name validation (~5 hits) — too strict
+- Chroot boundary crossed (~4 hits) — billy filesystem issue
+- Malformed refspec parsing (~3 hits) — rejects valid patterns
 
 ## CLI shim issues
 
-These can be fixed in the CLI shim code without changing go-git.
+### Output format mismatches (502 hits — largest category)
 
-### not a valid object name: 'HEAD' (19 hits, t3200-branch)
+Most failures are output formatting differences. Common patterns:
+- `git status` output format details (porcelain, short, long modes)
+- `git log` / `git show` formatting differences
+- `git branch` output formatting
+- `git tag` list formatting
+- `git cat-file` output differences
+- Missing/extra whitespace, different ref formatting
 
-Happens on orphan branches where HEAD points to an unborn branch (no commits).
-Operations like `repo.Head()` fail because the target ref doesn't exist yet.
-The CLI should detect orphan HEAD state and handle it gracefully.
-**Fix: medium** — add orphan-aware HEAD handling in branch/checkout/commit.
+### Wrong exit codes (103 hits)
 
-### not a valid object name: 'main' / 's' / 'HEAD^' (10 hits, t3200-branch)
+Commands succeed when they should fail or vice versa. Common patterns:
+- Commands that should fail on invalid input but silently succeed
+- Missing error detection for edge cases
+- `test_must_fail` expects non-zero but we return 0
 
-`ResolveRevision` fails on valid rev-parse syntax. `HEAD^` should work but
-doesn't — likely a go-git revision parser limitation. `main` fails when
-the branch was renamed or deleted by a previous test.
-**Fix: varies** — `HEAD^` is likely a go-git limitation, others are test state.
+### Orphan HEAD handling (~19 hits, t3200-branch)
 
-### remote not found (6+6 hits, t5516-fetch-push, t5510-fetch)
+Operations like `repo.Head()` fail on orphan branches where HEAD points
+to an unborn ref. Need orphan-aware handling in branch/checkout/commit.
 
-Fetch/push commands receive a URL or path instead of a named remote.
-The CLI now handles URL-based fetch but push may still expect named remotes.
-**Fix: small** — add URL-based push support (same pattern as fetch).
+### URL-based push (~12 hits, t5516-fetch-push, t5510-fetch)
 
-### message field is required (7 hits, t7004-tag)
+Push with a URL/path instead of a named remote. Fetch handles this
+but push still expects named remotes.
 
-`git tag -a` for annotated tags requires a message. Some tests expect the
-command to open an editor or read from stdin; our CLI just errors.
-**Fix: small** — default to empty message or read from stdin when `-m` not given.
+### Tag message required (~7 hits, t7004-tag)
 
-### couldn't find remote ref (3 hits, t5510-fetch)
+`git tag -a` without `-m` should open an editor or accept empty message.
+Currently errors with "message field is required".
 
-Fetch for a specific ref that doesn't exist on the remote. Might be a CLI
-issue (wrong refspec construction) or go-git returning wrong error.
-**Fix: needs investigation**.
+## Unimplemented commands still hit by tests
 
-## Summary table
+| Command | Hits | go-git API |
+|---|---|---|
+| bundle | 5 | none |
+| stash | 2 | none |
+| rebase | 2 | none |
+| fast-import | 2 | none |
+| commit-graph | 1 | none |
 
-| Root cause | Hits | Type | Effort |
-|---|---|---|---|
-| Config: invalid merge validation | 55 | go-git bug | ~3 lines |
-| Config: illegal character '/' | 119 | go-git bug | investigate |
-| Config: expected section name | 28 | go-git bug | investigate |
-| Config: expected EOL/EOF | 19 | go-git bug | investigate |
-| unknown extension: compatobjectformat | 89 | go-git bug | ~5 lines |
-| Orphan HEAD handling | 19 | CLI shim | medium |
-| tag already exists on fetch | 9 | go-git bug | small |
-| advertising refs recursion | 7 | go-git bug | investigate |
-| Remote not found (URL push) | 12 | CLI shim | small |
-| message field required | 7 | CLI shim | small |
-| Rev-parse limitations | 10 | mixed | varies |
-| Invalid ref name validation | 5 | go-git bug | ~10 lines |
-| chroot boundary crossed | 4 | go-git/billy | investigate |
-| malformed refspec | 3 | go-git bug | investigate |
+## Per-suite results
 
-**Quick wins (< 10 lines each):** invalid merge validation, compatobjectformat extension.
-These two alone would fix ~144 failures.
+| Suite | Pass | Skip | Fail | Total |
+|---|---|---|---|---|
+| t0000-basic | 36 | 0 | 56 | 92 |
+| t0001-init | 37 | 4 | 50 | 91 |
+| t1006-cat-file | 56 | 0 | 288 | 344 |
+| t1500-rev-parse | 48 | 0 | 31 | 79 |
+| t3200-branch | 27 | 0 | 139 | 166 |
+| t5510-fetch | 84 | 0 | 104 | 188 |
+| t5516-fetch-push | 5 | 0 | 115 | 120 |
+| t7004-tag | 52 | 55 | 121 | 228 |
+| t7508-status | 46 | 8 | 71 | 125 |
