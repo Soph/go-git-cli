@@ -1,0 +1,26 @@
+{
+  "cli_version": "v0.5.1-dev-e078dee3e",
+  "checkpoint_id": "45017ab9db3a",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "cmd/git/cmd_merge.go",
+    "cmd/git/main.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/45/017ab9db3a/0/metadata.json",
+      "transcript": "/45/017ab9db3a/0/full.jsonl",
+      "content_hash": "/45/017ab9db3a/0/content_hash.txt",
+      "prompt": "/45/017ab9db3a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 11010,
+    "cache_creation_tokens": 1108921,
+    "cache_read_tokens": 18970125,
+    "output_tokens": 101208,
+    "api_call_count": 257
+  }
+}
