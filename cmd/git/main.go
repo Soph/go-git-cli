@@ -66,6 +66,7 @@ func init() {
 		"for-each-ref":  cmdForEachRef,
 		"pull":          cmdPull,
 		"fsck":          cmdFsck,
+		"repack":        cmdRepack,
 	}
 }
 
