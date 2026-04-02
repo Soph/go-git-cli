@@ -1,0 +1,8 @@
+#!/bin/bash
+# mise description="Run git test suites against go-git CLI"
+set -e
+
+mkdir -p build/bin
+go build -o build/bin/git ./cmd/git/...
+build/bin/git install
+bash test/run-tests.sh "${GIT_DIST_PATH:-.git-dist}" build/bin "$@"
