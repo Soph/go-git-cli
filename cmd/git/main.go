@@ -64,7 +64,7 @@ func init() {
 		"ls-files":      cmdLsFiles,
 		"switch":        cmdSwitch,
 		"for-each-ref":  cmdForEachRef,
-		"pull":          cmdUnimplemented,
+		"pull":          cmdPull,
 	}
 }
 
@@ -121,18 +121,4 @@ func logUnimplemented(cmd string) {
 	}
 	defer f.Close()
 	fmt.Fprintf(f, "%s\n", cmd)
-}
-
-func cmdUnimplemented(args []string) int {
-	// Recover the command name from argv[0] or args.
-	cmd := "unknown"
-	base := filepath.Base(os.Args[0])
-	if strings.HasPrefix(base, "git-") {
-		cmd = strings.TrimPrefix(base, "git-")
-	} else if len(os.Args) > 1 {
-		cmd = os.Args[1]
-	}
-	logUnimplemented(cmd)
-	fmt.Fprintf(os.Stderr, "fatal: command not yet implemented in go-git\n")
-	return 128
 }
