@@ -1,3 +1,4 @@
 build/
+/git
 .git-dist
 .gogit-src
