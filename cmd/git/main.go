@@ -65,6 +65,7 @@ func init() {
 		"switch":        cmdSwitch,
 		"for-each-ref":  cmdForEachRef,
 		"pull":          cmdPull,
+		"fsck":          cmdFsck,
 	}
 }
 

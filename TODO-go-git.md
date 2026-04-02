@@ -30,3 +30,8 @@ Issues and missing features in go-git that limit the CLI.
 ## Worktree
 
 - [ ] `Worktree.Add()` has no force option
+
+## Fsck / object integrity
+
+- [ ] No API to get raw object bytes for re-hashing (needed to verify SHA matches content)
+- [ ] No built-in fsck / object integrity check method
