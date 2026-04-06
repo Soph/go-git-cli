@@ -1,6 +1,6 @@
 # CLI Test Suite — Failure Analysis
 
-Current results: **391 pass / 67 skip / 975 fail** across 9 test suites (1433 total).
+Current results: **393 pass / 318 skip / 716 fail** across 9 test suites (1427 total).
 
 Run `mise run test-cli` to re-run. Run `make classify-failures` to re-classify.
 
@@ -8,12 +8,9 @@ Run `mise run test-cli` to re-run. Run `make classify-failures` to re-classify.
 
 | Category | Count | Description |
 |---|---|---|
-| output-mismatch | 502 | CLI output format differs from real git |
-| fatal-error | 217 | go-git library error or CLI crash |
-| exit-code | 103 | Command ran but returned wrong exit code |
-| other | 95 | Uncategorized |
-| test-framework | 41 | git's test harness subtests (t0000) |
-| unimplemented | 17 | Missing command (skip-list candidate) |
+| skipped | 318 | Known unsupported (compat extensions, unimplemented commands) |
+| pass | 393 | Tests passing |
+| fail | 716 | Remaining failures (CLI output/exit code/fatal errors) |
 
 ## go-git library bugs
 
@@ -38,10 +35,12 @@ go-git's config parser is stricter than real git:
 Note: `branch config: invalid merge` (~55 hits) was fixed upstream in
 go-git/go-git#1923, awaiting next v6 release.
 
-### unknown extension: compatobjectformat (~89 hits, t1006-cat-file)
+### SHA-256 compat object format (~209 skipped tests, t1006-cat-file)
 
-go-git errors on repos with `extensions.compatobjectformat` (SHA-256 compat).
-Should ignore unknown extensions gracefully.
+`extensions.compatobjectformat` requires dual-hashing (SHA-1 + SHA-256)
+on every write to maintain the translation table. go-git correctly rejects
+these repos since it only supports SHA-1. These tests are now skipped.
+See https://github.com/go-git/go-git/issues/1863
 
 ### Other go-git issues
 
@@ -99,12 +98,12 @@ Currently errors with "message field is required".
 
 | Suite | Pass | Skip | Fail | Total |
 |---|---|---|---|---|
-| t0000-basic | 36 | 0 | 56 | 92 |
-| t0001-init | 37 | 4 | 50 | 91 |
-| t1006-cat-file | 56 | 0 | 288 | 344 |
-| t1500-rev-parse | 48 | 0 | 31 | 79 |
-| t3200-branch | 27 | 0 | 139 | 166 |
-| t5510-fetch | 84 | 0 | 104 | 188 |
-| t5516-fetch-push | 5 | 0 | 115 | 120 |
-| t7004-tag | 52 | 55 | 121 | 228 |
-| t7508-status | 46 | 8 | 71 | 125 |
+| t0000-basic | 35 | 2 | 55 | 92 |
+| t0001-init | 37 | 8 | 46 | 91 |
+| t1006-cat-file | 64 | 209 | 65 | 338 |
+| t1500-rev-parse | 48 | 2 | 29 | 79 |
+| t3200-branch | 27 | 4 | 135 | 166 |
+| t5510-fetch | 82 | 7 | 99 | 188 |
+| t5516-fetch-push | 3 | 14 | 103 | 120 |
+| t7004-tag | 51 | 57 | 120 | 228 |
+| t7508-status | 46 | 15 | 64 | 125 |

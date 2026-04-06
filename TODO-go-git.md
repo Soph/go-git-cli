@@ -17,7 +17,7 @@ Issues and missing features in go-git that limit the CLI.
 
 ## Extensions & compatibility
 
-- [ ] Errors on `extensions.compatobjectformat` instead of ignoring unknown extensions (~89 test failures)
+- [ ] No SHA-256 object format support — `extensions.compatobjectformat` requires dual-hashing on writes that go-git can't do. go-git correctly rejects these repos. (~209 skipped tests in t1006-cat-file). See https://github.com/go-git/go-git/issues/1863
 - [ ] Ref name validation too strict — rejects names real git allows (~5 test failures)
 - [ ] Refspec parsing rejects valid patterns (~3 test failures)
 

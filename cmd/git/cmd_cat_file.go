@@ -200,32 +200,30 @@ func cmdCatFile(args []string) int {
 		return 129
 	}
 
-	repo := openRepoOrDie()
+	// Use direct storage access to bypass extension verification.
+	// cat-file is read-only and safe for repos with unknown extensions.
+	store := openStorageOrDie()
 
 	// Batch modes.
 	if batchMode != "" {
 		if batchAll {
-			return catFileBatchAll(repo.Storer, batchMode, batchFmt, nulOutput)
+			return catFileBatchAll(store, batchMode, batchFmt, nulOutput)
 		}
 		delim := byte('\n')
 		if nulInput {
 			delim = 0
 		}
-		return catFileBatch(repo.Storer, batchMode, batchFmt, delim, nulOutput, bufferMode)
+		return catFileBatch(store, batchMode, batchFmt, delim, nulOutput, bufferMode)
 	}
 
 	// Single-object modes.
-	hash, err := repo.ResolveRevision(plumbing.Revision(objectArg))
+	hash, err := resolveOID(store, objectArg)
 	if err != nil {
-		h := plumbing.NewHash(objectArg)
-		if h.IsZero() {
-			fmt.Fprintf(os.Stderr, "fatal: Not a valid object name %s\n", objectArg)
-			return 128
-		}
-		hash = &h
+		fmt.Fprintf(os.Stderr, "fatal: Not a valid object name %s\n", objectArg)
+		return 128
 	}
 
-	obj, err := repo.Storer.EncodedObject(plumbing.AnyObject, *hash)
+	obj, err := store.EncodedObject(plumbing.AnyObject, hash)
 	if err != nil {
 		if checkExist {
 			return 1
