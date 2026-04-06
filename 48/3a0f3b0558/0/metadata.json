@@ -1,0 +1,40 @@
+{
+  "cli_version": "v0.5.1-dev-e078dee3e",
+  "checkpoint_id": "483a0f3b0558",
+  "session_id": "d13e133e-7e41-471b-bd06-dab6aec124af",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-06T15:44:18.78289Z",
+  "branch": "main",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "TODO-go-git.md",
+    "TODO.md",
+    "cmd/git/cmd_cat_file.go",
+    "cmd/git/repo.go",
+    "go.mod",
+    "go.sum",
+    "test/skip-list.txt"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-6[1m]",
+  "turn_id": "95ffd9c8e6e8",
+  "token_usage": {
+    "input_tokens": 11324,
+    "cache_creation_tokens": 2053756,
+    "cache_read_tokens": 44834686,
+    "output_tokens": 165550,
+    "api_call_count": 510
+  },
+  "session_metrics": {
+    "turn_count": 43
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-06T15:44:18.185281Z",
+    "agent_lines": 374,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 374,
+    "agent_percentage": 100
+  }
+}
